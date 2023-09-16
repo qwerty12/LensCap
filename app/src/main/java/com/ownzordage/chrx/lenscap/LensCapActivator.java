@@ -1,10 +1,18 @@
 package com.ownzordage.chrx.lenscap;
 
+import android.annotation.SuppressLint;
 import android.app.admin.DevicePolicyManager;
-import android.content.ComponentName;
+import android.app.admin.IDevicePolicyManager;
 import android.content.Context;
-import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.IBinder;
 import android.widget.Toast;
+
+import com.rosan.dhizuku.api.Dhizuku;
+import com.rosan.dhizuku.api.DhizukuBinderWrapper;
+import com.rosan.dhizuku.shared.DhizukuVariables;
+
+import java.lang.reflect.Field;
 
 /**
  * Helper class to activate and deactivate Lens Cap
@@ -17,58 +25,62 @@ public class LensCapActivator {
     }
 
     public static void toggleLensCap(Context context) {
-        DevicePolicyManager mDPM = (DevicePolicyManager) context.getSystemService(Context.DEVICE_POLICY_SERVICE);
-        ComponentName mDeviceAdminSample = new ComponentName(context, mDeviceAdminReceiver.class);
-        String status;
+        String status = context.getResources().getString(R.string.error_no_device_admin);
 
-        Status cameraStatus = getStatus(context);
-        switch (cameraStatus) {
-            case CAMERA_DISABLED:
-                mDPM.setCameraDisabled(mDeviceAdminSample, false);
-                status = context.getResources().getString(R.string.lens_cap_status_off);
-                break;
-            case CAMERA_ENABLED:
-                mDPM.setCameraDisabled(mDeviceAdminSample, true);
-                status = context.getResources().getString(R.string.lens_cap_status_on);
-                break;
-            default:
-                // If no device administrator, send the user straight to the settings page with a help toast
-                Intent intent = new Intent();
-                intent.setComponent(new ComponentName("com.android.settings","com.android.settings.DeviceAdminSettings"));
-                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                context.startActivity(intent);
-                status = context.getResources().getString(R.string.error_no_device_admin);
-                break;
+        if (Dhizuku.init(context) && Dhizuku.isPermissionGranted()) {
+            DevicePolicyManager mDPM = binderWrapperDevicePolicyManager(context);
+
+            Status cameraStatus = getStatus(context);
+            switch (cameraStatus) {
+                case CAMERA_DISABLED:
+                    mDPM.setCameraDisabled(DhizukuVariables.COMPONENT_NAME, false);
+                    status = context.getResources().getString(R.string.lens_cap_status_off);
+                    break;
+                case CAMERA_ENABLED:
+                    mDPM.setCameraDisabled(DhizukuVariables.COMPONENT_NAME, true);
+                    status = context.getResources().getString(R.string.lens_cap_status_on);
+                    break;
+            }
         }
+
         Toast.makeText(context, status, Toast.LENGTH_SHORT).show();
     }
 
     public static Status getStatus(Context context) {
-        DevicePolicyManager mDPM = (DevicePolicyManager) context.getSystemService(Context.DEVICE_POLICY_SERVICE);
-        ComponentName mDeviceAdminSample = new ComponentName(context, mDeviceAdminReceiver.class);
-        if (mDPM.isAdminActive(mDeviceAdminSample)) {
+        if (Dhizuku.init(context) && Dhizuku.isPermissionGranted()) {
+            DevicePolicyManager mDPM = binderWrapperDevicePolicyManager(context);
+
             // If the camera is disabled and the method is told to re-enable it
-            if (mDPM.getCameraDisabled(mDeviceAdminSample)) {
+            if (mDPM.getCameraDisabled(DhizukuVariables.COMPONENT_NAME)) {
                 return Status.CAMERA_DISABLED;
             } else {
                 return Status.CAMERA_ENABLED;
             }
-        } else {
-            return Status.DEVICE_ADMIN_DISABLED;
         }
+
+        return Status.DEVICE_ADMIN_DISABLED;
     }
 
-    public static void disableDeviceAdmin(Context context) {
-        if (LensCapActivator.getStatus(context) != LensCapActivator.Status.DEVICE_ADMIN_DISABLED) {
-            // If no device administrator, send the user straight to the settings page with a help toast
-            Intent intent = new Intent();
-            intent.setComponent(new ComponentName("com.android.settings", "com.android.settings.DeviceAdminSettings"));
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            context.startActivity(intent);
-            Toast.makeText(context, R.string.disable_device_admin_help_1, Toast.LENGTH_LONG).show();
-            Toast.makeText(context, R.string.disable_device_admin_help_2, Toast.LENGTH_LONG).show();
-        } else {
-            Toast.makeText(context, R.string.device_admin_already_disabled, Toast.LENGTH_SHORT).show();
+    // https://github.com/iamr0s/Dhizuku-API/blob/main/demo-binder_wrapper/src/main/java/com/rosan/dhizuku/demo/MainActivity.java#L59
+    @SuppressLint("SoonBlockedPrivateApi")
+    private static DevicePolicyManager binderWrapperDevicePolicyManager(Context context) {
+        try {
+            context = context.createPackageContext(DhizukuVariables.PACKAGE_NAME, Context.CONTEXT_IGNORE_SECURITY);
+            DevicePolicyManager manager = (DevicePolicyManager) context.getSystemService(Context.DEVICE_POLICY_SERVICE);
+            Field field = manager.getClass().getDeclaredField("mService");
+            field.setAccessible(true);
+            IDevicePolicyManager oldInterface = (IDevicePolicyManager) field.get(manager);
+            if (oldInterface instanceof DhizukuBinderWrapper) return manager;
+            assert oldInterface != null;
+            IBinder oldBinder = oldInterface.asBinder();
+            IBinder newBinder = Dhizuku.binderWrapper(oldBinder);
+            IDevicePolicyManager newInterface = IDevicePolicyManager.Stub.asInterface(newBinder);
+            field.set(manager, newInterface);
+            return manager;
+        } catch (NoSuchFieldException |
+                 IllegalAccessException |
+                 PackageManager.NameNotFoundException e) {
+            throw new RuntimeException(e);
         }
     }
 }

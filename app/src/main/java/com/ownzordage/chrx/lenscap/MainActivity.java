@@ -1,18 +1,13 @@
 package com.ownzordage.chrx.lenscap;
 
-import android.app.DialogFragment;
 import android.appwidget.AppWidgetManager;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
-import android.preference.PreferenceManager;
-import android.support.annotation.NonNull;
-import android.support.v7.app.AlertDialog;
+import android.os.RemoteException;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.Menu;
@@ -23,11 +18,10 @@ import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.TextView;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import static android.view.View.GONE;
-import static com.ownzordage.chrx.lenscap.LensCapActivator.disableDeviceAdmin;
+
+import com.rosan.dhizuku.api.Dhizuku;
+import com.rosan.dhizuku.api.DhizukuRequestPermissionListener;
 
 
 /**
@@ -36,9 +30,10 @@ import static com.ownzordage.chrx.lenscap.LensCapActivator.disableDeviceAdmin;
 public class MainActivity extends AppCompatActivity {
 
     public static final String LOG_TAG = MainActivity.class.getSimpleName();
-    private static final String ANDROID_11_WARNING_KEY = "android_11_warning_key";
 
     Context mContext;
+
+    View.OnClickListener clickListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,37 +49,27 @@ public class MainActivity extends AppCompatActivity {
         Button lensCapOffButton = (Button) findViewById(R.id.lensCapOffButton);
         ImageButton imageButton = (ImageButton) findViewById(R.id.mainToggleButton);
 
-        setAdminButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                DialogFragment newFragment = new DeviceAdminDialog();
-                newFragment.show(getFragmentManager(), "deviceAdmin");
+        setAdminButton.setOnClickListener(view -> {
+            if (Dhizuku.init(mContext) && !Dhizuku.isPermissionGranted()) {
+                Dhizuku.requestPermission(new DhizukuRequestPermissionListener() {
+                    @Override
+                    public void onRequestPermission(int grantResult) throws RemoteException {
+                        if (grantResult == PackageManager.PERMISSION_GRANTED) {
+                            updateUI();
+                        }
+                    }
+                });
             }
         });
 
-        lensCapOnButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                LensCapActivator.toggleLensCap(mContext); //false
-                updateUI();
-            }
-        });
+        clickListener = view -> {
+            LensCapActivator.toggleLensCap(mContext);
+            updateUI();
+        };
 
-        lensCapOffButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                LensCapActivator.toggleLensCap(mContext); //true
-                updateUI();
-            }
-        });
-
-        imageButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                LensCapActivator.toggleLensCap(mContext); //true
-                updateUI();
-            }
-        });
+        lensCapOnButton.setOnClickListener(clickListener);
+        lensCapOffButton.setOnClickListener(clickListener);
+        imageButton.setOnClickListener(clickListener);
 
         // Show Quick Settings promo card or hide it depending on version
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
@@ -97,39 +82,6 @@ public class MainActivity extends AppCompatActivity {
             });
         } else {
             findViewById(R.id.quick_settings_card).setVisibility(View.GONE);
-        }
-
-        if (Build.VERSION.SDK_INT >= 30) {
-            AlertDialog.Builder builder = new AlertDialog.Builder(this);
-            builder.setMessage(R.string.warning_android_11)
-                    .setTitle(R.string.uninstall)
-                    .setPositiveButton(R.string.uninstall, new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialog, int which) {
-                            uninstall();
-                        }
-                    })
-                    .create().show();
-        }
-
-        if (Build.VERSION.SDK_INT == 29 &&
-                !PreferenceManager.getDefaultSharedPreferences(this).getBoolean(ANDROID_11_WARNING_KEY, false)) {
-            AlertDialog.Builder builder = new AlertDialog.Builder(this);
-            builder.setMessage(R.string.warning_android_10)
-                    .setTitle(R.string.warning_android_10_title)
-                    .setPositiveButton(R.string.uninstall, new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialog, int which) {
-                            uninstall();
-                        }
-                    })
-                    .setNeutralButton(R.string.OK, new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialog, int which) {
-                            PreferenceManager.getDefaultSharedPreferences(MainActivity.this).edit().putBoolean(ANDROID_11_WARNING_KEY, true).apply();
-                        }
-                    })
-                    .create().show();
         }
     }
 
@@ -151,27 +103,10 @@ public class MainActivity extends AppCompatActivity {
         int id = item.getItemId();
 
         switch (id) {
-            case R.id.action_disable_device_admin:
-                disableDeviceAdmin(mContext);
-                return true;
-            case R.id.action_uninstall:
-                uninstall();
-                return true;
             case R.id.action_qs_youtube:
                 watchYoutubeVideo("ZdsKdM-IMiQ");
             default:
                 return super.onOptionsItemSelected(item);
-        }
-    }
-
-    public void uninstall() {
-        if (LensCapActivator.getStatus(mContext) != LensCapActivator.Status.DEVICE_ADMIN_DISABLED) {
-            disableDeviceAdmin(mContext);
-        } else {
-            Uri packageUri = Uri.parse("package:com.ownzordage.chrx.lenscap");
-            Intent uninstallIntent =
-                    new Intent(Intent.ACTION_UNINSTALL_PACKAGE, packageUri);
-            startActivity(uninstallIntent);
         }
     }
 

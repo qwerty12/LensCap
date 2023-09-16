@@ -36,8 +36,6 @@ public class LensCapWidget extends AppWidgetProvider {
                     setImage(context, R.drawable.lenscap, views, R.id.widget_image);
                     break;
                 case CAMERA_ENABLED:
-                    setImage(context, R.drawable.lens, views, R.id.widget_image);
-                    break;
                 default:
                     setImage(context, R.drawable.lens, views, R.id.widget_image);
                     break;

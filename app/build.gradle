@@ -1,12 +1,13 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 28
+    compileSdkVersion 29
 
     defaultConfig {
         applicationId "com.ownzordage.chrx.lenscap"
-        minSdkVersion 14
+        minSdkVersion 19
         maxSdkVersion 29
+        //noinspection ExpiredTargetSdkVersion
         targetSdkVersion 28
         versionCode 18
         versionName "1.78"
@@ -27,6 +28,9 @@ dependencies {
     implementation 'com.android.support:appcompat-v7:26.0.1'
     implementation 'com.android.support:support-v4:26.0.1'
     implementation 'com.android.support:cardview-v7:26.0.1'
+    def dhizuku_version = "2.4"
+    implementation "io.github.iamr0s:Dhizuku-API:$dhizuku_version"
+    implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:4.3'
 }
 
 repositories {
