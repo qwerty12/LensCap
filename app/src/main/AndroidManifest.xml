@@ -2,9 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.ownzordage.chrx.lenscap">
 
-    <!--This permission is to enable In App Purchases-->
-    <uses-permission android:name="com.android.vending.BILLING" />
-
     <application
         android:name=".MyApplication"
         android:allowBackup="true"
